@@ -170,6 +170,9 @@ public class AmazonS3 {
 	/** Decoded form of the private AWSSecretAccessKey, to sign requests. */
 	private final SecretKeySpec privateKey;
 
+	/** token. */
+	private final String token;
+
 	/** Our HTTP proxy support, in case we are behind a firewall. */
 	private final ProxySelector proxySelector;
 
@@ -219,6 +222,8 @@ public class AmazonS3 {
 		if (secret == null)
 			throw new IllegalArgumentException(JGitText.get().missingSecretkey);
 		privateKey = new SecretKeySpec(Constants.encodeASCII(secret), HMAC);
+
+		token = props.getProperty("token"); //$NON-NLS-1$
 
 		final String pacl = props.getProperty("acl", "PRIVATE"); //$NON-NLS-1$ //$NON-NLS-2$
 		if (StringUtils.equalsIgnoreCase("PRIVATE", pacl)) //$NON-NLS-1$
@@ -583,6 +588,9 @@ public class AmazonS3 {
 	}
 
 	private void authorize(final HttpURLConnection c) throws IOException {
+    if(token != null){
+		  c.setRequestProperty("x-amz-security-token", token);
+    }
 		final Map<String, List<String>> reqHdr = c.getRequestProperties();
 		final SortedMap<String, String> sigHdr = new TreeMap<String, String>();
 		for (final Map.Entry<String, List<String>> entry : reqHdr.entrySet()) {
