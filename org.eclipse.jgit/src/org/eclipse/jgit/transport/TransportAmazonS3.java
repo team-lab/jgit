@@ -49,13 +49,18 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.net.URLConnection;
 import java.text.MessageFormat;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -72,6 +77,7 @@ import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Ref.Storage;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.SymbolicRef;
+import org.eclipse.jgit.util.IO;
 
 /**
  * Transport over the non-Git aware Amazon S3 protocol.
@@ -159,6 +165,13 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 	}
 
 	private Properties loadProperties() throws NotSupportedException {
+    if ("IAM".equals(uri.getUser())) {
+      try{
+        return instanceCredentialProfile();
+      }catch(IOException e){
+        throw new RuntimeException(e);
+      }
+    }
 		if (local.getDirectory() != null) {
 			File propsFile = new File(local.getDirectory(), uri.getUser());
 			if (propsFile.isFile())
@@ -180,6 +193,34 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 					JGitText.get().cannotReadFile, propsFile));
 		return props;
 	}
+
+  private static final Pattern jsonStringPropertyPattern = Pattern.compile("\"([^\"]*)\"\\s*:\\s*\"([^\"]*)\"");
+  private static final String roleUrl = "http://169.254.169.254/latest/meta-data/iam/security-credentials/";
+	private static Properties instanceCredentialProfile() throws IOException{
+		Properties props = new Properties();
+    String role = getHttpBody(roleUrl);
+    String jsonBody = getHttpBody(roleUrl+role);
+    Matcher matcher = jsonStringPropertyPattern.matcher(jsonBody);
+    HashMap<String,String> values = new HashMap<String,String>();
+    while(matcher.find()){
+      values.put(matcher.group(1),matcher.group(2));
+    }
+		props.setProperty("accesskey", values.get("AccessKeyId"));
+		props.setProperty("secretkey", values.get("SecretAccessKey"));
+		props.setProperty("token", values.get("Token"));
+    return props;
+  }
+	private static String getHttpBody(String url) throws IOException{
+    final URL u = new URL(url);
+    final HttpURLConnection c = (HttpURLConnection) u.openConnection();
+    final InputStream in = c.getInputStream();
+    final int len = c.getContentLength();
+    try {
+      return new String(IO.readWholeStream(in, len == -1 ? 1000 : len).array(), "UTF-8");
+    } finally {
+      in.close();
+    }
+  }
 
 	private static Properties loadPropertiesFile(File propsFile)
 			throws NotSupportedException {
