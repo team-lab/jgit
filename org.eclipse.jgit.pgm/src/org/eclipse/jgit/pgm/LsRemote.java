@@ -46,9 +46,13 @@
 package org.eclipse.jgit.pgm;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Pattern;
 
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.spi.StringArrayOptionHandler;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.transport.FetchConnection;
@@ -62,14 +66,20 @@ class LsRemote extends TextBuiltin {
 	@Argument(index = 0, metaVar = "metaVar_uriish", required = true)
 	private String remote;
 
+	@Argument(index = 1, metaVar = "metaVar_refs", handler = StringArrayOptionHandler.class)
+	private String[] refs;
+
 	@Override
 	protected void run() throws Exception {
 		final Transport tn = Transport.open(db, remote);
+		final Patterns patterns = new Patterns(refs);
 		if (0 <= timeout)
 			tn.setTimeout(timeout);
 		final FetchConnection c = tn.openFetch();
 		try {
 			for (final Ref r : c.getRefs()) {
+				if (!patterns.match(r.getName()))
+					continue;
 				show(r.getObjectId(), r.getName());
 				if (r.getPeeledObjectId() != null)
 					show(r.getPeeledObjectId(), r.getName() + "^{}"); //$NON-NLS-1$
@@ -91,5 +101,46 @@ class LsRemote extends TextBuiltin {
 		outw.print('\t');
 		outw.print(name);
 		outw.println();
+	}
+
+	// TODO: need implements https://github.com/git/git/blob/master/wildmatch.c
+	static class TailMatcher {
+		private Pattern tailPattern;
+
+		public TailMatcher(String pattern) {
+			String p = "(^|/)"
+					+ Pattern.quote(pattern).replaceAll("\\*", "\\\\E.*\\\\Q")
+					+ "$";
+			tailPattern = Pattern.compile(p);
+		}
+
+		public boolean matche(String name) {
+			return tailPattern.matcher(name).find();
+		}
+	}
+
+	static class Patterns {
+		private List<TailMatcher> patterns = new ArrayList<TailMatcher>();
+
+		Patterns(String[] refs) {
+			if (refs != null && refs.length > 0) {
+				for (String pattern : refs) {
+					if (pattern.length() != 0) {
+						patterns.add(new TailMatcher(pattern));
+					}
+				}
+			}
+		}
+
+		public boolean match(String name) {
+			if (patterns.size() == 0)
+				return true;
+			for (TailMatcher pattern : patterns) {
+				if (pattern.matche(name))
+					return true;
+			}
+			return false;
+		}
+
 	}
 }

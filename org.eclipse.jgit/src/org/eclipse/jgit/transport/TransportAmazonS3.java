@@ -69,6 +69,7 @@ import java.util.TreeMap;
 import org.eclipse.jgit.errors.NotSupportedException;
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.internal.storage.file.PackLock;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectIdRef;
@@ -128,6 +129,10 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 				throws NotSupportedException {
 			return new TransportAmazonS3(local, uri);
 		}
+
+		public Transport open(URIish uri) throws NotSupportedException {
+			return new TransportAmazonS3(uri);
+		}
 	};
 
 	/** User information necessary to connect to S3. */
@@ -148,11 +153,22 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 	 * <code>keyPrefix + "/"</code>.
 	 */
 	private final String keyPrefix;
-
 	TransportAmazonS3(final Repository local, final URIish uri)
 			throws NotSupportedException {
 		super(local, uri);
+		s3 = new AmazonS3(loadProperties());
+		bucket = uri.getHost();
 
+		String p = uri.getPath();
+		if (p.startsWith("/")) //$NON-NLS-1$
+			p = p.substring(1);
+		if (p.endsWith("/")) //$NON-NLS-1$
+			p = p.substring(0, p.length() - 1);
+		keyPrefix = p;
+	}
+
+	TransportAmazonS3(final URIish uri) throws NotSupportedException {
+		super(uri);
 		s3 = new AmazonS3(loadProperties());
 		bucket = uri.getHost();
 
@@ -172,13 +188,21 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
         throw new RuntimeException(e);
       }
     }
-		if (local.getDirectory() != null) {
-			File propsFile = new File(local.getDirectory(), uri.getUser());
-			if (propsFile.isFile())
-				return loadPropertiesFile(propsFile);
-		}
+		File propsFile;
+		if (local != null) {
+			if (local.getDirectory() != null) {
+				propsFile = new File(local.getDirectory(), uri.getUser());
+				if (propsFile.isFile())
+					return loadPropertiesFile(propsFile);
+			}
 
-		File propsFile = new File(local.getFS().userHome(), uri.getUser());
+			if (local.getFS() != null) {
+				propsFile = new File(local.getFS().userHome(), uri.getUser());
+				if (propsFile.isFile())
+					return loadPropertiesFile(propsFile);
+			}
+		}
+		propsFile = new File(uri.getUser());
 		if (propsFile.isFile())
 			return loadPropertiesFile(propsFile);
 
@@ -235,9 +259,74 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 	@Override
 	public FetchConnection openFetch() throws TransportException {
 		final DatabaseS3 c = new DatabaseS3(bucket, keyPrefix + "/objects"); //$NON-NLS-1$
-		final WalkFetchConnection r = new WalkFetchConnection(this, c);
-		r.available(c.readAdvertisedRefs());
-		return r;
+		if (local != null) {
+			final WalkFetchConnection r = new WalkFetchConnection(this, c);
+			r.available(c.readAdvertisedRefs());
+			return r;
+		} else {
+			final Map<String, Ref> refsMap = c.readAdvertisedRefs();
+			return new FetchConnection() {
+
+				@Override
+				public Map<String, Ref> getRefsMap() {
+					return refsMap;
+				}
+
+				@Override
+				public Collection<Ref> getRefs() {
+					return getRefsMap().values();
+				}
+
+				@Override
+				public Ref getRef(String name) {
+					return refsMap.get(name);
+				}
+
+				@Override
+				public void close() {
+					c.close();
+				}
+
+				@Override
+				public String getMessages() {
+					throw new UnsupportedOperationException();
+				}
+
+				@Override
+				public void fetch(ProgressMonitor monitor,
+						Collection<Ref> want, Set<ObjectId> have)
+						throws TransportException {
+					throw new UnsupportedOperationException();
+				}
+
+				@Override
+				public void fetch(ProgressMonitor monitor,
+						Collection<Ref> want, Set<ObjectId> have,
+						OutputStream out) throws TransportException {
+					throw new UnsupportedOperationException();
+				}
+
+				@Override
+				public boolean didFetchIncludeTags() {
+					throw new UnsupportedOperationException();
+				}
+
+				@Override
+				public boolean didFetchTestConnectivity() {
+					throw new UnsupportedOperationException();
+				}
+
+				@Override
+				public void setPackLockMessage(String message) {
+					throw new UnsupportedOperationException();
+				}
+
+				@Override
+				public Collection<PackLock> getPackLocks() {
+					throw new UnsupportedOperationException();
+				}
+			};
+		}
 	}
 
 	@Override
