@@ -189,6 +189,9 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 				throw new RuntimeException(e);
 			}
 		}
+		if ("ENV".equals(uri.getUser())) { //$NON-NLS-1$
+			return environmentVariableProfile();
+		}
 		File propsFile;
 		if (local != null) {
 			if (local.getDirectory() != null) {
@@ -216,6 +219,31 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 		} else
 			throw new NotSupportedException(MessageFormat.format(
 					JGitText.get().cannotReadFile, propsFile));
+		return props;
+	}
+
+	// see
+	// https://github.com/aws/aws-sdk-java/blob/master/aws-java-sdk-core/src/main/java/com/amazonaws/auth/EnvironmentVariableCredentialsProvider.java
+	private Properties environmentVariableProfile() {
+		Properties props = new Properties();
+		String accesskey = System.getenv("AWS_ACCESS_KEY_ID"); //$NON-NLS-1$
+		if(accesskey==null){
+			accesskey = System.getenv("AWS_ACCESS_KEY"); //$NON-NLS-1$
+		}
+		String secretkey = System.getenv("AWS_SECRET_KEY"); //$NON-NLS-1$
+		if (secretkey == null) {
+			secretkey = System.getenv("AWS_SECRET_ACCESS_KEY"); //$NON-NLS-1$
+		}
+		if (accesskey != null) {
+			props.setProperty("accesskey", accesskey); //$NON-NLS-1$
+		}
+		if (secretkey != null) {
+			props.setProperty("secretkey", secretkey); //$NON-NLS-1$
+		}
+		String token = System.getenv("AWS_SESSION_TOKEN"); //$NON-NLS-1$
+		if (token != null) {
+			props.setProperty("token", token); //$NON-NLS-1$
+		}
 		return props;
 	}
 
