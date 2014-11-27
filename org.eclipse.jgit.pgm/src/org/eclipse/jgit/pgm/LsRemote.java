@@ -108,9 +108,9 @@ class LsRemote extends TextBuiltin {
 		private Pattern tailPattern;
 
 		public TailMatcher(String pattern) {
-			String p = "(^|/)"
-					+ Pattern.quote(pattern).replaceAll("\\*", "\\\\E.*\\\\Q")
-					+ "$";
+			String p = "(^|/)" //$NON-NLS-1$
+					+ Pattern.quote(pattern).replaceAll("\\*", "\\\\E.*\\\\Q") //$NON-NLS-1$ //$NON-NLS-2$
+					+ "$"; //$NON-NLS-1$
 			tailPattern = Pattern.compile(p);
 		}
 

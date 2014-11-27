@@ -588,9 +588,9 @@ public class AmazonS3 {
 	}
 
 	private void authorize(final HttpURLConnection c) throws IOException {
-    if(token != null){
-		  c.setRequestProperty("x-amz-security-token", token);
-    }
+		if (token != null) {
+			c.setRequestProperty("x-amz-security-token", token); //$NON-NLS-1$
+		}
 		final Map<String, List<String>> reqHdr = c.getRequestProperties();
 		final SortedMap<String, String> sigHdr = new TreeMap<String, String>();
 		for (final Map.Entry<String, List<String>> entry : reqHdr.entrySet()) {

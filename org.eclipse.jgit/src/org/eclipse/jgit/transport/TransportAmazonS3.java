@@ -153,6 +153,7 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 	 * <code>keyPrefix + "/"</code>.
 	 */
 	private final String keyPrefix;
+
 	TransportAmazonS3(final Repository local, final URIish uri)
 			throws NotSupportedException {
 		super(local, uri);
@@ -181,13 +182,13 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 	}
 
 	private Properties loadProperties() throws NotSupportedException {
-    if ("IAM".equals(uri.getUser())) {
-      try{
-        return instanceCredentialProfile();
-      }catch(IOException e){
-        throw new RuntimeException(e);
-      }
-    }
+		if ("IAM".equals(uri.getUser())) { //$NON-NLS-1$
+			try {
+				return instanceCredentialProfile();
+			} catch (IOException e) {
+				throw new RuntimeException(e);
+			}
+		}
 		File propsFile;
 		if (local != null) {
 			if (local.getDirectory() != null) {
@@ -218,33 +219,38 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 		return props;
 	}
 
-  private static final Pattern jsonStringPropertyPattern = Pattern.compile("\"([^\"]*)\"\\s*:\\s*\"([^\"]*)\"");
-  private static final String roleUrl = "http://169.254.169.254/latest/meta-data/iam/security-credentials/";
-	private static Properties instanceCredentialProfile() throws IOException{
+	private static final Pattern jsonStringPropertyPattern = Pattern
+			.compile("\"([^\"]*)\"\\s*:\\s*\"([^\"]*)\""); //$NON-NLS-1$
+
+	private static final String roleUrl = "http://169.254.169.254/latest/meta-data/iam/security-credentials/"; //$NON-NLS-1$
+
+	private static Properties instanceCredentialProfile() throws IOException {
 		Properties props = new Properties();
-    String role = getHttpBody(roleUrl);
-    String jsonBody = getHttpBody(roleUrl+role);
-    Matcher matcher = jsonStringPropertyPattern.matcher(jsonBody);
-    HashMap<String,String> values = new HashMap<String,String>();
-    while(matcher.find()){
-      values.put(matcher.group(1),matcher.group(2));
-    }
-		props.setProperty("accesskey", values.get("AccessKeyId"));
-		props.setProperty("secretkey", values.get("SecretAccessKey"));
-		props.setProperty("token", values.get("Token"));
-    return props;
-  }
-	private static String getHttpBody(String url) throws IOException{
-    final URL u = new URL(url);
-    final HttpURLConnection c = (HttpURLConnection) u.openConnection();
-    final InputStream in = c.getInputStream();
-    final int len = c.getContentLength();
-    try {
-      return new String(IO.readWholeStream(in, len == -1 ? 1000 : len).array(), "UTF-8");
-    } finally {
-      in.close();
-    }
-  }
+		String role = getHttpBody(roleUrl);
+		String jsonBody = getHttpBody(roleUrl + role);
+		Matcher matcher = jsonStringPropertyPattern.matcher(jsonBody);
+		HashMap<String, String> values = new HashMap<String, String>();
+		while (matcher.find()) {
+			values.put(matcher.group(1), matcher.group(2));
+		}
+		props.setProperty("accesskey", values.get("AccessKeyId")); //$NON-NLS-1$ //$NON-NLS-2$
+		props.setProperty("secretkey", values.get("SecretAccessKey")); //$NON-NLS-1$ //$NON-NLS-2$
+		props.setProperty("token", values.get("Token")); //$NON-NLS-1$ //$NON-NLS-2$
+		return props;
+	}
+
+	private static String getHttpBody(String url) throws IOException {
+		final URL u = new URL(url);
+		final HttpURLConnection c = (HttpURLConnection) u.openConnection();
+		final InputStream in = c.getInputStream();
+		final int len = c.getContentLength();
+		try {
+			return new String(IO.readWholeStream(in, len == -1 ? 1000 : len)
+					.array(), "UTF-8"); //$NON-NLS-1$
+		} finally {
+			in.close();
+		}
+	}
 
 	private static Properties loadPropertiesFile(File propsFile)
 			throws NotSupportedException {
